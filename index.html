@@ -4,6 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Koalitionsrechner – Proportionale Sitzverteilung</title>
+
+<!-- Chart.js + Datalabels für Prognose -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
 <style>
   :root { --bg:#0b0f14; --card:#121823; --ink:#e8eef7; --muted:#a6b0bf; --ok:#37d07a; --bad:#ff6a6a; --radius:14px; }
   *{box-sizing:border-box}
@@ -58,11 +63,28 @@
   /* Halbkreis-Animation */
   .arc{opacity:1; transition:opacity .35s ease, transform .35s ease}
   .arc.enter{opacity:0; transform:translate(-18px,22px) scale(0.96)}
+
+  /* Overlay für Prognose */
+  .ard-overlay{position:fixed; inset:0; background:rgba(5,10,20,.6); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center; z-index:9999}
+  .ard-panel{width:min(1060px,96vw); max-height:92vh; overflow:auto;
+    background:linear-gradient(180deg,#0b1e3a 0%, #0a1730 100%);
+    border:1px solid rgba(255,255,255,.12); border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45);
+    color:#eaf2ff; padding:18px}
+  .ard-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px}
+  .ard-title{font-weight:800; letter-spacing:.5px; text-transform:uppercase; font-size:18px}
+  .ard-sub{opacity:.8; font-size:12px}
+  .ard-progline{height:2px; background:linear-gradient(90deg,#ffe066,#7cc6ff); opacity:.7; margin:6px 0 10px; border-radius:2px}
+  .ard-colchart{display:flex; align-items:flex-end; gap:18px; height:320px; background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:18px}
+  .ard-foot{display:flex; gap:8px; justify-content:flex-end; margin-top:12px}
+  .ard-btn{border:1px solid rgba(255,255,255,.18); background:#0d2547; color:#eaf2ff; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:700}
+  .ard-btn.secondary{background:#0e1a33}
 </style>
 </head>
 <body>
   <h1>Koalitionsrechner – Proportionale Sitzverteilung</h1>
-  <p class="sub">Koalitionen testen, Historik 1949–2025, Prognose-Overlay (nur Säulen mit Hochfahr-Animation).</p>
+  <p class="sub">Koalitionen testen, Historik 1949–2025. Prognose-Overlay: ARD-artige Säulen, per Klick fährt immer die nächste Säule hoch.</p>
 
   <div class="wrap">
     <!-- Eingaben -->
@@ -186,7 +208,7 @@
 </script>
 
 <script>
-/* Polyfill: CSS.escape (Safari/iOS) */
+/* ----- Polyfill: CSS.escape (Safari/iOS) ----- */
 if (!window.CSS || typeof CSS.escape !== "function") {
   window.CSS = window.CSS || {};
   CSS.escape = function (value) {
@@ -222,8 +244,8 @@ const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 let selectedCoalition = new Set();
 const GREY = "#b7bdc7";
-function norm(n){ return (n||"").toString().trim().toLowerCase().replace(/\s+/g,""); }
-function isOther(name){ const n=norm(name); return n==="andere" || n==="sonstige"; }
+const norm = n => (n||"").toString().trim().toLowerCase().replace(/\s+/g,"");
+const isOther = name => { const n=norm(name); return n==="andere" || n==="sonstige"; };
 
 /* Defaults */
 const defaultParties = [
@@ -253,15 +275,8 @@ function addPartyRow(p = {name:"Neue Partei", color:"#8888ff", pct:0, exception:
   $("#partyList").appendChild(row);
   row.querySelectorAll("input").forEach(inp=>inp.addEventListener("change", calcAndRender));
 }
-function setPartyList(list){
-  $("#partyList").innerHTML="";
-  list.forEach(addPartyRow);
-}
-function setDefaults(){
-  setPartyList(defaultParties);
-  selectedCoalition = new Set();
-  calcAndRender();
-}
+function setPartyList(list){ $("#partyList").innerHTML=""; list.forEach(addPartyRow); }
+function setDefaults(){ setPartyList(defaultParties); selectedCoalition = new Set(); calcAndRender(); }
 
 /* Verfahren */
 function filterByThreshold(parties, threshold, exceptions){
@@ -484,170 +499,148 @@ $("#loadFileBtn").addEventListener("click", async ()=>{
 setDefaults();
 </script>
 
-<!-- ===== ARD-Prognose OVERLAY – NUR SÄULEN ===== -->
-<script>
-(function(){
-  const css = `
-  .ard-overlay{position:fixed; inset:0; background:rgba(5,10,20,.6); backdrop-filter:blur(6px);
-    display:flex; align-items:center; justify-content:center; z-index:9999}
-  .ard-panel{width:min(1060px,96vw); max-height:92vh; overflow:auto;
-    background:linear-gradient(180deg,#0b1e3a 0%, #0a1730 100%);
-    border:1px solid rgba(255,255,255,.12); border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45);
-    color:#eaf2ff; padding:18px}
-  .ard-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px}
-  .ard-title{font-weight:800; letter-spacing:.5px; text-transform:uppercase; font-size:18px}
-  .ard-sub{opacity:.8; font-size:12px}
-  .ard-progline{height:2px; background:linear-gradient(90deg,#ffe066,#7cc6ff); opacity:.7; margin:6px 0 10px; border-radius:2px}
-  .ard-colchart{display:flex; align-items:flex-end; gap:12px; height:280px; background:rgba(255,255,255,.04);
-    border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px}
-  .ard-bar{flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:8px; height:100%} /* <-- FIX */
-  .ard-bar .bar{width:100%; min-width:28px; background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.1);
-    border-radius:8px; overflow:hidden; position:relative; height:100%}
-  .ard-bar .fill{position:absolute; left:0; right:0; bottom:0; height:0%; transition:height .8s cubic-bezier(.2,.8,.2,1)}
-  .ard-bar .lbl{font-size:12px; opacity:.9; text-align:center}
-  .ard-bar .val{font-variant-numeric:tabular-nums; font-weight:800; color:#ffe066; font-size:12px}
-  .ard-controls{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0}
-  .ard-btn{border:1px solid rgba(255,255,255,.18); background:#0d2547; color:#eaf2ff; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:700}
-  .ard-btn.secondary{background:#0e1a33}
-  .ard-foot{display:flex; gap:8px; justify-content:flex-end; margin-top:12px}
-  `;
-  const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
-
-  const $ = s => document.querySelector(s);
-  const $$ = s => Array.from(document.querySelectorAll(s));
-  const commaDe = x => Number(x||0).toFixed(1).replace(".", ",");
-
-  // Button in der Hauptansicht
-  $("#showArdBtn").addEventListener("click", openOverlay);
-
-  let ov, stepIndex=0, autoTimer=null, colOrder=[];
-
-  function buildOverlay(){
-    if(ov) return ov;
-    ov = document.createElement("div");
-    ov.className="ard-overlay"; ov.style.display="none";
-    ov.innerHTML = `
-      <div class="ard-panel">
-        <div class="ard-head">
-          <div>
-            <div class="ard-title">Prognose – ARD-Stil (inoffiziell)</div>
-            <div class="ard-sub">Basis: deine aktuellen Eingaben – Säulen mit Hochfahr-Animation</div>
-          </div>
-          <button class="ard-btn ard-close">Schließen</button>
-        </div>
-
-        <div class="ard-progline"></div>
-
-        <div id="colChart" class="ard-colchart"></div>
-
-        <div class="ard-controls">
-          <button class="ard-btn" id="btnStepReset">⟲ Reset</button>
-          <button class="ard-btn" id="btnPrev">⟸ Zurück</button>
-          <button class="ard-btn" id="btnNext">Weiter ⟹</button>
-          <button class="ard-btn secondary" id="btnAuto">▶ Auto</button>
-          <button class="ard-btn secondary" id="btnStop" disabled>⏹ Stop</button>
-        </div>
-
-        <div class="ard-foot">
-          <button class="ard-btn ard-close">Schließen</button>
-        </div>
+<!-- ===== ARD-Prognose OVERLAY – NUR SÄULEN, per Klick animiert ===== -->
+<div id="forecastOverlay" class="ard-overlay">
+  <div class="ard-panel">
+    <div class="ard-head">
+      <div>
+        <div class="ard-title">Prognose – ARD-Stil (inoffiziell)</div>
+        <div class="ard-sub">Basis: deine aktuellen Eingaben – Säulen wachsen pro Klick</div>
       </div>
-    `;
-    document.body.appendChild(ov);
-    ov.querySelectorAll(".ard-close").forEach(b=> b.addEventListener("click", closeOverlay));
-    ov.addEventListener("click", e=>{ if(e.target===ov){ closeOverlay(); }});
+      <button class="ard-btn" id="closeForecast">Schließen</button>
+    </div>
 
-    $("#btnStepReset").onclick = ()=> stepReset();
-    $("#btnPrev").onclick      = ()=> stepPrev();
-    $("#btnNext").onclick      = ()=> stepNext();
-    $("#btnAuto").onclick      = ()=> autoStart();
-    $("#btnStop").onclick      = ()=> autoStop();
+    <div class="ard-progline"></div>
 
-    return ov;
-  }
-  function closeOverlay(){ autoStop(); ov.style.display="none"; }
-  function openOverlay(){
-    buildOverlay();
-    ov.style.display="flex";
-    buildColumns();
-    stepReset();
-  }
+    <div class="ard-colchart">
+      <canvas id="forecastChart" width="1000" height="320"></canvas>
+    </div>
 
-  function norm(n){ return (n||"").toString().trim().toLowerCase().replace(/\s+/g,""); }
-  function isOther(name){ const n=norm(name); return n==="andere" || n==="sonstige"; }
+    <div class="ard-foot">
+      <button class="ard-btn secondary" id="resetBars">⟲ Reset</button>
+      <button class="ard-btn" id="nextBarBtn">Nächste Partei animieren</button>
+    </div>
+  </div>
+</div>
 
-  function getPercentSorted(){
-    if (typeof readInputs !== "function") return [];
-    const inp = readInputs();
-    return inp.parties
-              .filter(p=>p && p.name && p.pct>0 && !isOther(p.name))
-              .sort((a,b)=>(b.pct||0)-(a.pct||0));
-  }
+<script>
+/* ===== Prognose-Overlay (Chart.js) – Säulen wachsen pro Klick ===== */
+let forecastChart = null;
+let forecastIndex = 0;
+let forecastList  = [];
 
-  function buildColumns(){
-    const col = $("#colChart"); col.innerHTML="";
-    const list = getPercentSorted();
-    colOrder = list.map(p=>p.name);
-    list.forEach(p=>{
-      const el = document.createElement("div");
-      el.className="ard-bar";
-      el.dataset.name = p.name;
-      el.innerHTML = `
-        <div class="val">${commaDe(0)}%</div>
-        <div class="bar"><div class="fill" style="background:${p.color}; height:0%"></div></div>
-        <div class="lbl">${p.name}</div>
-      `;
-      col.appendChild(el);
-    });
-  }
+const commaDe = x => Number(x||0).toFixed(1).replace(".", ",");
 
-  function stepReset(){
-    autoStop();
-    stepIndex = 0;
-    $$("#colChart .ard-bar").forEach(b=>{
-      const f=b.querySelector(".fill"); const v=b.querySelector(".val");
-      f.style.height="0%"; v.textContent=`${commaDe(0)}%`; /* <-- FIX */
-    });
-  }
-  function stepPrev(){
-    if(stepIndex<=0) return;
-    stepIndex--;
-    const name = colOrder[stepIndex];
-    const bar = $(`#colChart .ard-bar[data-name="${CSS.escape(name)}"]`);
-    if(!bar) return;
-    bar.querySelector(".fill").style.height = "0%";
-    bar.querySelector(".val").textContent   = `${commaDe(0)}%`; /* <-- FIX */
-  }
-  function stepNext(){
-    const list = getPercentSorted();
-    if(stepIndex >= list.length) return;
-    const p = list[stepIndex];
-    const bar = $(`#colChart .ard-bar[data-name="${CSS.escape(p.name)}"]`);
-    if(!bar) return;
-    const fill = bar.querySelector(".fill");
-    const val  = bar.querySelector(".val");
-    // Startzustand -> nächster Frame -> Zielhöhe (triggert CSS-Transition)
-    fill.style.height = "0%";
-    val.textContent   = `${commaDe(0)}%`;
-    const target = Math.min(100, p.pct||0);
-    requestAnimationFrame(()=>{ fill.style.height = target + "%"; val.textContent = `${commaDe(p.pct)}%`; });
-    stepIndex++;
-  }
-  function autoStart(){
-    autoStop();
-    $("#btnAuto").disabled=true; $("#btnStop").disabled=false;
-    stepReset();
-    const list = getPercentSorted();
-    autoTimer = setInterval(()=>{
-      if(stepIndex >= list.length){ autoStop(); return; }
-      stepNext();
-    }, 1200);
-  }
-  function autoStop(){
-    if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
-    $("#btnAuto").disabled=false; $("#btnStop").disabled=true;
-  }
-})();
+// Öffnen
+document.getElementById("showArdBtn").addEventListener("click", ()=>{
+  buildForecastData();
+  openForecast();
+});
+document.getElementById("closeForecast").addEventListener("click", ()=> {
+  document.getElementById("forecastOverlay").style.display="none";
+});
+document.getElementById("resetBars").addEventListener("click", resetForecast);
+document.getElementById("nextBarBtn").addEventListener("click", animateNextBar);
+
+// Daten aus aktuellen Eingaben holen
+function buildForecastData(){
+  const inp = readInputs();
+  forecastList = inp.parties
+    .filter(p=>p && p.name && !isOther(p.name) && (p.pct||0)>0)
+    .sort((a,b)=>(b.pct||0)-(a.pct||0))
+    .map(p=>({...p, shownPct:0}));
+}
+
+// Overlay öffnen + Chart initialisieren
+function openForecast(){
+  const ov = document.getElementById("forecastOverlay");
+  ov.style.display = "flex";
+  initForecastChart();
+  resetForecast();
+}
+
+// Chart aufsetzen (Balken optisch wie ARD: dick, weißer Rand)
+function initForecastChart(){
+  const ctx = document.getElementById("forecastChart");
+  if (forecastChart) { forecastChart.destroy(); }
+  forecastChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: forecastList.map(p => p.name),
+      datasets: [{
+        label: "Prognose",
+        data: forecastList.map(p => p.shownPct),
+        backgroundColor: forecastList.map(p => p.color),
+        borderColor: "#ffffff",
+        borderWidth: 3,
+        barThickness: 48,             // dicke Balken
+        maxBarThickness: 56,
+        categoryPercentage: 0.72,     // Abstand zwischen Säulen
+        barPercentage: 0.92
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,               // wir animieren manuell
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          color: "#fff",
+          anchor: "end",
+          align: "start",
+          offset: -4,
+          font: { weight: "bold", size: 16 },
+          formatter: (value) => value > 0 ? commaDe(value) + " %" : ""
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: "#eaf2ff", font: { weight: "bold", size: 14 } }
+        },
+        y: {
+          beginAtZero: true,
+          suggestedMax: Math.max(30, Math.ceil(Math.max(...forecastList.map(p=>p.pct)) + 5)),
+          grid: { color:"rgba(255,255,255,.15)" },
+          ticks: { color:"#eaf2ff", font:{ size: 12 }, callback: v => v + "%" }
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+}
+
+// Reset: alles auf 0%
+function resetForecast(){
+  forecastIndex = 0;
+  forecastList.forEach(p => p.shownPct = 0);
+  forecastChart.data.datasets[0].data = forecastList.map(p=>0);
+  forecastChart.update();
+}
+
+// Per Klick fährt die nächste Säule hoch
+function animateNextBar(){
+  if (forecastIndex >= forecastList.length) return;
+  const p = forecastList[forecastIndex];
+  let step = 0;
+  const steps = 30;        // 30 Frames
+  const target = p.pct;    // echtes Prozentziel
+
+  const timer = setInterval(()=>{
+    step++;
+    const cur = target * (step/steps);
+    p.shownPct = cur;
+    forecastChart.data.datasets[0].data[forecastIndex] = cur;
+    forecastChart.update();
+    if (step >= steps){
+      forecastChart.data.datasets[0].data[forecastIndex] = target;
+      forecastChart.update();
+      clearInterval(timer);
+      forecastIndex++;
+    }
+  }, 40); // 40ms → ~1.2s pro Säule
+}
 </script>
 
 <!-- Quellenhinweis (optional)
