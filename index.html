@@ -4,11 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Koalitionsrechner – Proportionale Sitzverteilung</title>
-
-<!-- Chart.js + Datalabels für Prognose -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-
 <style>
   :root { --bg:#0b0f14; --card:#121823; --ink:#e8eef7; --muted:#a6b0bf; --ok:#37d07a; --bad:#ff6a6a; --radius:14px; }
   *{box-sizing:border-box}
@@ -64,7 +59,7 @@
   .arc{opacity:1; transition:opacity .35s ease, transform .35s ease}
   .arc.enter{opacity:0; transform:translate(-18px,22px) scale(0.96)}
 
-  /* Overlay für Prognose */
+  /* ===== ARD-Overlay (nur Säulen) ===== */
   .ard-overlay{position:fixed; inset:0; background:rgba(5,10,20,.6); backdrop-filter:blur(6px);
     display:none; align-items:center; justify-content:center; z-index:9999}
   .ard-panel{width:min(1060px,96vw); max-height:92vh; overflow:auto;
@@ -75,16 +70,17 @@
   .ard-title{font-weight:800; letter-spacing:.5px; text-transform:uppercase; font-size:18px}
   .ard-sub{opacity:.8; font-size:12px}
   .ard-progline{height:2px; background:linear-gradient(90deg,#ffe066,#7cc6ff); opacity:.7; margin:6px 0 10px; border-radius:2px}
-  .ard-colchart{display:flex; align-items:flex-end; gap:18px; height:320px; background:rgba(255,255,255,.04);
-    border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:18px}
-  .ard-foot{display:flex; gap:8px; justify-content:flex-end; margin-top:12px}
+  .ard-colchart{display:flex; align-items:flex-end; gap:14px; height:320px; background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px}
+  .ard-controls{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0}
   .ard-btn{border:1px solid rgba(255,255,255,.18); background:#0d2547; color:#eaf2ff; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:700}
   .ard-btn.secondary{background:#0e1a33}
+  .ard-foot{display:flex; gap:8px; justify-content:flex-end; margin-top:12px}
 </style>
 </head>
 <body>
   <h1>Koalitionsrechner – Proportionale Sitzverteilung</h1>
-  <p class="sub">Koalitionen testen, Historik 1949–2025. Prognose-Overlay: ARD-artige Säulen, per Klick fährt immer die nächste Säule hoch.</p>
+  <p class="sub">Koalitionen testen, Historik 1949–2025, Prognose-Overlay (nur Säulen mit Hochfahr-Animation).</p>
 
   <div class="wrap">
     <!-- Eingaben -->
@@ -208,7 +204,7 @@
 </script>
 
 <script>
-/* ----- Polyfill: CSS.escape (Safari/iOS) ----- */
+/* Polyfill: CSS.escape (Safari/iOS) */
 if (!window.CSS || typeof CSS.escape !== "function") {
   window.CSS = window.CSS || {};
   CSS.escape = function (value) {
@@ -228,7 +224,7 @@ const PRESETS = {
   "Deutschland-Koalition":   ["CDU/CSU","SPD","FDP"],
   "Ampel-Koalition":         ["SPD","Grüne","Grüne/B90","FDP"],
   "Kenia-Koalition":         ["CDU/CSU","SPD","Grüne","Grüne/B90"],
-  "Brombeer-Koalition":      ["SPD","Linke","BSW"],
+  "Brombeer-Koalition":      ["SPD","CDU","BSW"],
   "Rot-Rot-Grün":            ["SPD","Linke","Grüne","Grüne/B90"],
   "Rot-Grün-Rot":            ["SPD","Linke","Grüne","Grüne/B90"],
   "Grün-Rot-Rot":            ["SPD","Linke","Grüne","Grüne/B90"],
@@ -244,8 +240,8 @@ const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 let selectedCoalition = new Set();
 const GREY = "#b7bdc7";
-const norm = n => (n||"").toString().trim().toLowerCase().replace(/\s+/g,"");
-const isOther = name => { const n=norm(name); return n==="andere" || n==="sonstige"; };
+function norm(n){ return (n||"").toString().trim().toLowerCase().replace(/\s+/g,""); }
+function isOther(name){ const n=norm(name); return n==="andere" || n==="sonstige"; }
 
 /* Defaults */
 const defaultParties = [
@@ -275,8 +271,15 @@ function addPartyRow(p = {name:"Neue Partei", color:"#8888ff", pct:0, exception:
   $("#partyList").appendChild(row);
   row.querySelectorAll("input").forEach(inp=>inp.addEventListener("change", calcAndRender));
 }
-function setPartyList(list){ $("#partyList").innerHTML=""; list.forEach(addPartyRow); }
-function setDefaults(){ setPartyList(defaultParties); selectedCoalition = new Set(); calcAndRender(); }
+function setPartyList(list){
+  $("#partyList").innerHTML="";
+  list.forEach(addPartyRow);
+}
+function setDefaults(){
+  setPartyList(defaultParties);
+  selectedCoalition = new Set();
+  calcAndRender();
+}
 
 /* Verfahren */
 function filterByThreshold(parties, threshold, exceptions){
@@ -319,7 +322,7 @@ function computeSeats(parties,seats,threshold,exceptions,method){
   return result;
 }
 
-/* Zeichnen & Layout */
+/* Zeichnen & Layout (Halbkreis) */
 function layoutArcs(data,total,sel){
   const coal = data.filter(p=>p.seats>0 && sel.has(p.name));
   const rest = data.filter(p=>p.seats>0 && !sel.has(p.name));
@@ -499,148 +502,192 @@ $("#loadFileBtn").addEventListener("click", async ()=>{
 setDefaults();
 </script>
 
-<!-- ===== ARD-Prognose OVERLAY – NUR SÄULEN, per Klick animiert ===== -->
-<div id="forecastOverlay" class="ard-overlay">
-  <div class="ard-panel">
-    <div class="ard-head">
-      <div>
-        <div class="ard-title">Prognose – ARD-Stil (inoffiziell)</div>
-        <div class="ard-sub">Basis: deine aktuellen Eingaben – Säulen wachsen pro Klick</div>
-      </div>
-      <button class="ard-btn" id="closeForecast">Schließen</button>
-    </div>
-
-    <div class="ard-progline"></div>
-
-    <div class="ard-colchart">
-      <canvas id="forecastChart" width="1000" height="320"></canvas>
-    </div>
-
-    <div class="ard-foot">
-      <button class="ard-btn secondary" id="resetBars">⟲ Reset</button>
-      <button class="ard-btn" id="nextBarBtn">Nächste Partei animieren</button>
-    </div>
-  </div>
-</div>
-
+<!-- ===== ARD-Prognose OVERLAY – NUR SÄULEN (Klick fährt Säule hoch, Prozent ÜBER dem Balken) ===== -->
 <script>
-/* ===== Prognose-Overlay (Chart.js) – Säulen wachsen pro Klick ===== */
-let forecastChart = null;
-let forecastIndex = 0;
-let forecastList  = [];
+(function(){
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  const GREY = "#b7bdc7";
+  const commaDe = x => Number(x||0).toFixed(1).replace(".", ",");
+  const norm = n => (n||"").toString().trim().toLowerCase().replace(/\s+/g,"");
+  const isOther = name => { const n=norm(name); return n==="andere" || n==="sonstige"; };
 
-const commaDe = x => Number(x||0).toFixed(1).replace(".", ",");
+  // Overlay Grundbau (einmal)
+  let ov = null;
+  function buildOverlay(){
+    if (ov) return ov;
+    ov = document.createElement("div");
+    ov.className = "ard-overlay";
+    ov.id = "ardOverlay";
+    ov.innerHTML = `
+      <div class="ard-panel">
+        <div class="ard-head">
+          <div>
+            <div class="ard-title">Prognose – ARD-Stil (inoffiziell)</div>
+            <div class="ard-sub">Basis: deine aktuellen Eingaben – Säulen mit Hochfahr-Animation</div>
+          </div>
+          <button class="ard-btn ard-close">Schließen</button>
+        </div>
 
-// Öffnen
-document.getElementById("showArdBtn").addEventListener("click", ()=>{
-  buildForecastData();
-  openForecast();
-});
-document.getElementById("closeForecast").addEventListener("click", ()=> {
-  document.getElementById("forecastOverlay").style.display="none";
-});
-document.getElementById("resetBars").addEventListener("click", resetForecast);
-document.getElementById("nextBarBtn").addEventListener("click", animateNextBar);
+        <div class="ard-progline"></div>
 
-// Daten aus aktuellen Eingaben holen
-function buildForecastData(){
-  const inp = readInputs();
-  forecastList = inp.parties
-    .filter(p=>p && p.name && !isOther(p.name) && (p.pct||0)>0)
-    .sort((a,b)=>(b.pct||0)-(a.pct||0))
-    .map(p=>({...p, shownPct:0}));
-}
+        <div class="ard-colchart">
+          <svg id="forecastChart" viewBox="0 0 800 400" style="width:100%;height:auto;"></svg>
+        </div>
 
-// Overlay öffnen + Chart initialisieren
-function openForecast(){
-  const ov = document.getElementById("forecastOverlay");
-  ov.style.display = "flex";
-  initForecastChart();
-  resetForecast();
-}
+        <div class="ard-controls">
+          <button class="ard-btn" id="btnAll">Alle animieren</button>
+          <button class="ard-btn secondary" id="btnReset">Reset</button>
+        </div>
 
-// Chart aufsetzen (Balken optisch wie ARD: dick, weißer Rand)
-function initForecastChart(){
-  const ctx = document.getElementById("forecastChart");
-  if (forecastChart) { forecastChart.destroy(); }
-  forecastChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: forecastList.map(p => p.name),
-      datasets: [{
-        label: "Prognose",
-        data: forecastList.map(p => p.shownPct),
-        backgroundColor: forecastList.map(p => p.color),
-        borderColor: "#ffffff",
-        borderWidth: 3,
-        barThickness: 48,             // dicke Balken
-        maxBarThickness: 56,
-        categoryPercentage: 0.72,     // Abstand zwischen Säulen
-        barPercentage: 0.92
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,               // wir animieren manuell
-      plugins: {
-        legend: { display: false },
-        datalabels: {
-          color: "#fff",
-          anchor: "end",
-          align: "start",
-          offset: -4,
-          font: { weight: "bold", size: 16 },
-          formatter: (value) => value > 0 ? commaDe(value) + " %" : ""
-        }
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: "#eaf2ff", font: { weight: "bold", size: 14 } }
-        },
-        y: {
-          beginAtZero: true,
-          suggestedMax: Math.max(30, Math.ceil(Math.max(...forecastList.map(p=>p.pct)) + 5)),
-          grid: { color:"rgba(255,255,255,.15)" },
-          ticks: { color:"#eaf2ff", font:{ size: 12 }, callback: v => v + "%" }
-        }
-      }
-    },
-    plugins: [ChartDataLabels]
+        <div class="ard-foot">
+          <button class="ard-btn ard-close">Schließen</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    ov.querySelectorAll(".ard-close").forEach(b=> b.addEventListener("click", ()=> ov.style.display="none"));
+    ov.addEventListener("click", e=>{ if(e.target===ov){ ov.style.display="none"; }});
+
+    // Buttons
+    $("#btnAll").addEventListener("click", animateAllBars);
+    $("#btnReset").addEventListener("click", resetBars);
+
+    return ov;
+  }
+
+  // Daten aus Haupt-App
+  function getPercentSorted(){
+    if (typeof readInputs !== "function") return [];
+    const inp = readInputs();
+    return inp.parties
+      .filter(p=>p && p.name && p.pct>0 && !isOther(p.name))
+      .sort((a,b)=>(b.pct||0)-(a.pct||0));
+  }
+
+  // === Prognose-Balken animiert (Prozent ÜBER dem Balken) ===
+  function renderForecastBars(data){
+    const svg = $("#forecastChart");
+    const w = 800, h = 400, margin = 48;
+    const barW = Math.max(32, Math.min(60, (w - 2*margin) / Math.max(1, data.length) * 0.65));
+    const gap = Math.max(16, ((w - 2*margin) / Math.max(1, data.length)) - barW);
+    const maxPct = Math.max(...data.map(p=>p.pct), 30);
+
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.innerHTML = "";
+
+    // Grund-Achse (optional dezent)
+    const axis = document.createElementNS("http://www.w3.org/2000/svg","line");
+    axis.setAttribute("x1", margin);
+    axis.setAttribute("x2", w - margin);
+    axis.setAttribute("y1", h - margin);
+    axis.setAttribute("y2", h - margin);
+    axis.setAttribute("stroke", "rgba(255,255,255,.25)");
+    axis.setAttribute("stroke-width", "1");
+    svg.appendChild(axis);
+
+    data.forEach((p,i)=>{
+      const x = margin + i*(barW+gap);
+      const targetHeight = (p.pct/maxPct)*(h - margin*2);
+      const yBase = h - margin;
+
+      // Gruppe für Interaktionen
+      const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+      svg.appendChild(g);
+
+      // Balken (startet bei 0)
+      const rect = document.createElementNS("http://www.w3.org/2000/svg","rect");
+      rect.setAttribute("x", x);
+      rect.setAttribute("width", barW);
+      rect.setAttribute("y", yBase);
+      rect.setAttribute("height", 0);
+      rect.setAttribute("fill", p.color);
+      g.appendChild(rect);
+
+      // Prozent-Text ÜBER dem finalen Balken
+      const txt = document.createElementNS("http://www.w3.org/2000/svg","text");
+      txt.setAttribute("x", x + barW/2);
+      txt.setAttribute("y", yBase - targetHeight - 10);  // 10px Abstand über dem Balken
+      txt.setAttribute("fill", "#ffffff");
+      txt.setAttribute("text-anchor", "middle");
+      txt.setAttribute("font-size", "16");
+      txt.setAttribute("font-weight", "700");
+      txt.textContent = `${p.pct.toFixed(1).replace(".", ",")}%`;
+      svg.appendChild(txt);
+
+      // Label unten
+      const lbl = document.createElementNS("http://www.w3.org/2000/svg","text");
+      lbl.setAttribute("x", x + barW/2);
+      lbl.setAttribute("y", yBase + 16);
+      lbl.setAttribute("fill", "#eaf2ff");
+      lbl.setAttribute("text-anchor", "middle");
+      lbl.setAttribute("font-size", "12");
+      lbl.textContent = p.name;
+      svg.appendChild(lbl);
+
+      // Klick → animiere nur diesen Balken
+      g.addEventListener("click", ()=>{
+        animateBar(rect, yBase, targetHeight, 750);
+      });
+    });
+  }
+
+  function animateBar(rect, yBase, targetHeight, dur=700){
+    const startT = performance.now();
+    (function anim(t){
+      const k = Math.min(1, (t - startT)/dur);
+      const eased = k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k+2, 3)/2;
+      const curH = targetHeight * eased;
+      rect.setAttribute("y", yBase - curH);
+      rect.setAttribute("height", curH);
+      if (k < 1) requestAnimationFrame(anim);
+    })(performance.now());
+  }
+
+  function animateAllBars(){
+    const svg = $("#forecastChart");
+    const rects = Array.from(svg.querySelectorAll("rect"));
+    const yBase = parseFloat(svg.getAttribute("viewBox").split(" ")[3]) - 48; // h - margin
+    rects.forEach((r, idx) => {
+      const target = parseFloat(r.nextTarget || r.getAttribute("data-target") || (yBase - parseFloat(r.getAttribute("y"))));
+      // Rechne aus dem Text oberhalb den Zielwert neu (robust):
+      const topText = svg.querySelectorAll("text")[idx*2+0]; // jeder Balken hat 2 Texte, der erste ist Prozent
+      const pctStr = (topText?.textContent || "0").replace("%","").replace(",",".");
+      const maxH = (parseFloat(svg.getAttribute("viewBox").split(" ")[3]) - 96); // h - 2*margin
+      const targetH = Math.max(0, Math.min(maxH, (parseFloat(pctStr)/Math.max(...Array.from(svg.querySelectorAll("text"))
+                                .values()) ) )); // Fallback – wir animieren einfach alle Balken
+    });
+    // Einfacher: re-render und dann sequentiell anklicken simulieren:
+    const data = getPercentSorted();
+    renderForecastBars(data);
+    let i=0;
+    const bars = Array.from(svg.querySelectorAll("g"));
+    const tick = () => {
+      if (i>=bars.length) return;
+      bars[i].dispatchEvent(new Event("click"));
+      i++;
+      setTimeout(tick, 600);
+    };
+    tick();
+  }
+
+  function resetBars(){
+    const svg = $("#forecastChart");
+    svg.querySelectorAll("rect").forEach(r=>{
+      const yBase = 400 - 48; // h - margin
+      r.setAttribute("y", yBase);
+      r.setAttribute("height", 0);
+    });
+  }
+
+  // Button aus Hauptansicht
+  $("#showArdBtn").addEventListener("click", ()=>{
+    buildOverlay();
+    ov.style.display = "flex";
+    const data = getPercentSorted();
+    renderForecastBars(data);
   });
-}
-
-// Reset: alles auf 0%
-function resetForecast(){
-  forecastIndex = 0;
-  forecastList.forEach(p => p.shownPct = 0);
-  forecastChart.data.datasets[0].data = forecastList.map(p=>0);
-  forecastChart.update();
-}
-
-// Per Klick fährt die nächste Säule hoch
-function animateNextBar(){
-  if (forecastIndex >= forecastList.length) return;
-  const p = forecastList[forecastIndex];
-  let step = 0;
-  const steps = 30;        // 30 Frames
-  const target = p.pct;    // echtes Prozentziel
-
-  const timer = setInterval(()=>{
-    step++;
-    const cur = target * (step/steps);
-    p.shownPct = cur;
-    forecastChart.data.datasets[0].data[forecastIndex] = cur;
-    forecastChart.update();
-    if (step >= steps){
-      forecastChart.data.datasets[0].data[forecastIndex] = target;
-      forecastChart.update();
-      clearInterval(timer);
-      forecastIndex++;
-    }
-  }, 40); // 40ms → ~1.2s pro Säule
-}
+})();
 </script>
 
 <!-- Quellenhinweis (optional)
